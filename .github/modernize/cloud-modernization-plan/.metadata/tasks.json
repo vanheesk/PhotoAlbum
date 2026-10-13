@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Cloud modernization tasks for PhotoAlbum.",
+  "tasks": [
+    {
+      "type": "infrastructure",
+      "id": "001-infrastructure-azure",
+      "description": "Provision the Azure resources required to run PhotoAlbum.",
+      "reason": "The application needs durable cloud infrastructure for deployment and persistent data.",
+      "requirements": "Use the existing Azure Container Apps and Bicep configuration as the starting point. Ensure the infrastructure provisions Azure Container Apps, Azure SQL Database, Azure Blob Storage, and the supporting resources and identity permissions required by PhotoAlbum. Provision the resources in the selected Azure subscription and region.",
+      "skills": [
+        {
+          "name": "infrastructure-bicep-generation",
+          "location": "builtin"
+        }
+      ],
+      "iacType": "bicep",
+      "provision": true
+    },
+    {
+      "type": "setupBaseline",
+      "id": "002-setupBaseline-photoalbum",
+      "description": "Capture the current PhotoAlbum behavior and test baseline before modernization.",
+      "reason": "A frozen baseline supports verification that the cloud-readiness changes preserve existing application behavior.",
+      "requirements": "Set the baseline snapshot folder to PhotoAlbum. Establish a test baseline, including the real-versus-mock strategy for dependencies used by subsequent integration verification."
+    },
+    {
+      "type": "transform",
+      "id": "003-transform-local-database-to-azure-sql",
+      "description": "Configure PhotoAlbum to persist application data in Azure SQL Database.",
+      "reason": "The local SQL Server connection is not suitable as the application's cloud database configuration.",
+      "requirements": "Use Azure SQL Database for the deployed application's data while preserving the existing SQL Server data model and Entity Framework behavior. Use managed identity for cloud authentication. Keep local development configuration usable. OracleDB is not present, so do not migrate the database to PostgreSQL.",
+      "skills": [
+        {
+          "name": "migration-azure-sql-database",
+          "location": "builtin"
+        }
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "transform",
+      "id": "004-transform-local-files-to-azure-blob",
+      "description": "Store and retrieve uploaded photos using Azure Blob Storage.",
+      "reason": "Photos stored on a local filesystem are not shared or durable across cloud application instances.",
+      "requirements": "Replace deployed photo file storage and retrieval with Azure Blob Storage while preserving upload, download, and deletion behavior. Authenticate to cloud storage with managed identity and retain suitable local development behavior.",
+      "dependencies": [
+        "003-transform-local-database-to-azure-sql"
+      ],
+      "skills": [
+        {
+          "name": "migration-azure-storage-blob",
+          "location": "builtin"
+        }
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "integrationTest",
+      "id": "005-integrationTest-cloud-services",
+      "description": "Build integration tests for migrated Azure services and run post-migration verification",
+      "reason": "Verify the application behavior against the provisioned Azure services before deployment.",
+      "requirements": "Run post-migration verification for Azure SQL Database and Azure Blob Storage using the provisioned environment and the frozen baseline strategy.",
+      "dependencies": [
+        "001-infrastructure-azure",
+        "002-setupBaseline-photoalbum",
+        "003-transform-local-database-to-azure-sql",
+        "004-transform-local-files-to-azure-blob"
+      ]
+    },
+    {
+      "type": "security",
+      "id": "006-security-cve-remediation",
+      "description": "Scan project dependencies for known CVEs and remediate identified vulnerabilities before deployment.",
+      "reason": "Address known dependency vulnerabilities in the application before it is released to Azure.",
+      "requirements": "Scan all project dependencies for known CVEs and remediate vulnerable dependencies to the minimum patched version. If a fix requires a major-version upgrade, document the dependency, current and upgraded versions, and breaking-change risk. Verify the project builds and all tests pass after remediation.",
+      "dependencies": [
+        "003-transform-local-database-to-azure-sql",
+        "004-transform-local-files-to-azure-blob",
+        "005-integrationTest-cloud-services"
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "007-deployment-azure-container-apps",
+      "description": "Deploy PhotoAlbum to Azure Container Apps using the provisioned infrastructure.",
+      "reason": "Make the modernized application available in its requested Azure environment.",
+      "requirements": "Build and deploy PhotoAlbum to Azure Container Apps using the provisioned Azure resources, with the application's Azure SQL Database and Azure Blob Storage configuration available at runtime.",
+      "dependencies": [
+        "001-infrastructure-azure",
+        "006-security-cve-remediation"
+      ],
+      "targetAzureService": "azurecontainerapp",
+      "resourceStatus": "Provision new Azure resources using the infrastructure task.",
+      "deploymentTool": "bicep",
+      "skills": [
+        {
+          "name": "azcli-containerapp-deploy",
+          "location": "builtin"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "planName": "cloud-modernization-plan",
+    "projectName": "PhotoAlbum",
+    "language": "dotnet",
+    "createdAt": "2026-10-13T11:52:55Z",
+    "version": "1.0"
+  }
+}
