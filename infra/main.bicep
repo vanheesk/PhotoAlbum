@@ -13,6 +13,7 @@ param location string = resourceGroup().location
 @description('Container image name for the web service (set by azd deploy)')
 param webImageName string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
+@description('SQL server administrator password. The application authenticates with managed identity.')
 @secure()
 @minLength(12)
 @maxLength(128)

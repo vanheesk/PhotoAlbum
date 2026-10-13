@@ -31,10 +31,8 @@ var blobEndpoint = builder.Configuration["AzureStorageBlob:Endpoint"];
 if (!string.IsNullOrWhiteSpace(blobEndpoint))
 {
     var containerName = builder.Configuration["AzureStorageBlob:ContainerName"] ?? "photos";
-    builder.Services.AddSingleton(new BlobContainerClient(
-        new Uri(blobEndpoint),
-        containerName,
-        new DefaultAzureCredential()));
+    var blobServiceClient = new BlobServiceClient(new Uri(blobEndpoint), new DefaultAzureCredential());
+    builder.Services.AddSingleton(blobServiceClient.GetBlobContainerClient(containerName));
     builder.Services.AddSingleton<IPhotoStorageService, AzureBlobPhotoStorageService>();
 }
 else

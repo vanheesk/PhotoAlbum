@@ -31,6 +31,14 @@
       "metadata": {
         "description": "Container image name for the web service (set by azd deploy)"
       }
+    },
+    "sqlAdminPassword": {
+      "type": "secureString",
+      "minLength": 12,
+      "maxLength": 128,
+      "metadata": {
+        "description": "SQL server administrator password. The application authenticates with managed identity."
+      }
     }
   },
   "variables": {
@@ -40,7 +48,6 @@
     },
     "sqlServerName": "[format('sql-{0}-{1}', parameters('environmentName'), variables('resourceToken'))]",
     "sqlAdminUser": "sqladmin",
-    "sqlAdminPassword": "[format('P@ssw0rd{0}', uniqueString(resourceGroup().id, parameters('environmentName')))]",
     "sqlDatabaseName": "PhotoAlbumDb",
     "sqlServerFqdn": "[format('{0}{1}', variables('sqlServerName'), environment().suffixes.sqlServerHostname)]",
     "sqlConnectionString": "[format('Server=tcp:{0},1433;Initial Catalog={1};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', variables('sqlServerFqdn'), variables('sqlDatabaseName'))]"
@@ -3674,7 +3681,7 @@
             "value": "[parameters('location')]"
           },
           "acrAdminUserEnabled": {
-            "value": true
+            "value": false
           },
           "acrSku": {
             "value": "Basic"
@@ -6329,7 +6336,7 @@
             "value": "[variables('sqlAdminUser')]"
           },
           "administratorLoginPassword": {
-            "value": "[variables('sqlAdminPassword')]"
+            "value": "[parameters('sqlAdminPassword')]"
           },
           "tags": {
             "value": "[variables('tags')]"
@@ -10302,7 +10309,7 @@
             "value": "Standard_LRS"
           },
           "allowBlobPublicAccess": {
-            "value": true
+            "value": false
           },
           "publicNetworkAccess": {
             "value": "Enabled"

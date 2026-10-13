@@ -35,7 +35,7 @@ All custom modules have been removed - AVM provides everything needed.
 
 3. **Container Registry** (`avm/res/container-registry/registry:0.6.0`)
    - Stores Docker images
-   - Admin enabled for local push
+   - Admin credentials disabled; Container App pulls using managed identity
    - System-assigned managed identity for ACR pull
 
 4. **SQL Server & Database** (`avm/res/sql/server:0.9.1`)
@@ -47,7 +47,7 @@ All custom modules have been removed - AVM provides everything needed.
 5. **Storage Account** (`avm/res/storage/storage-account:0.14.3`)
    - Blob storage for photos
    - 'photos' container created automatically
-   - Public access enabled
+   - Anonymous Blob access disabled
 
 6. **Container App** (`avm/res/app/container-app:0.11.0`)
    - System-assigned managed identity
@@ -75,6 +75,10 @@ azd env new <environment-name>
 
 # Set location
 azd env set AZURE_LOCATION westus2
+
+# Set a secure SQL administrator password for resource provisioning.
+# The application itself connects using managed identity.
+azd env set AZURE_SQL_ADMIN_PASSWORD '<strong-password>'
 ```
 
 ### Deploy Infrastructure
