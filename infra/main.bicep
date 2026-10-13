@@ -13,6 +13,11 @@ param location string = resourceGroup().location
 @description('Container image name for the web service (set by azd deploy)')
 param webImageName string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
+@secure()
+@minLength(12)
+@maxLength(128)
+param sqlAdminPassword string
+
 // Generate unique resource names
 var resourceToken = toLower(uniqueString(resourceGroup().id, environmentName, location))
 var tags = {
@@ -47,7 +52,7 @@ module containerRegistry 'br/public:avm/res/container-registry/registry:0.6.0' =
   params: {
     name: 'cr${resourceToken}'
     location: location
-    acrAdminUserEnabled: true
+    acrAdminUserEnabled: false
     acrSku: 'Basic'
     tags: tags
   }
@@ -56,7 +61,6 @@ module containerRegistry 'br/public:avm/res/container-registry/registry:0.6.0' =
 // === SQL Server and Database ===
 var sqlServerName = 'sql-${environmentName}-${resourceToken}'
 var sqlAdminUser = 'sqladmin'
-var sqlAdminPassword = 'P@ssw0rd${uniqueString(resourceGroup().id, environmentName)}'
 var sqlDatabaseName = 'PhotoAlbumDb'
 
 module sqlServer 'br/public:avm/res/sql/server:0.9.1' = {
@@ -94,7 +98,7 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.14.3' = {
     location: location
     kind: 'StorageV2'
     skuName: 'Standard_LRS'
-    allowBlobPublicAccess: true
+    allowBlobPublicAccess: false
     publicNetworkAccess: 'Enabled'
     networkAcls: {
       defaultAction: 'Allow'

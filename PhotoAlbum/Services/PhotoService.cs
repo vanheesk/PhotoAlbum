@@ -14,7 +14,7 @@ public class PhotoService : IPhotoService
     private readonly PhotoAlbumContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PhotoService> _logger;
-    private readonly string _uploadPath;
+    private readonly IPhotoStorageService _photoStorage;
     private readonly long _maxFileSizeBytes;
     private readonly string[] _allowedMimeTypes;
 
@@ -25,13 +25,14 @@ public class PhotoService : IPhotoService
     public PhotoService(
         PhotoAlbumContext context,
         IConfiguration configuration,
-        ILogger<PhotoService> logger)
+        ILogger<PhotoService> logger,
+        IPhotoStorageService photoStorage)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _photoStorage = photoStorage;
 
-        _uploadPath = _configuration["FileUpload:UploadPath"] ?? "wwwroot/uploads";
         _maxFileSizeBytes = _configuration.GetValue<long>("FileUpload:MaxFileSizeBytes", 10485760);
         _allowedMimeTypes = _configuration.GetSection("FileUpload:AllowedMimeTypes").Get<string[]>()
             ?? new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
@@ -144,23 +145,14 @@ public class PhotoService : IPhotoService
             var storedFileName = $"{Guid.NewGuid()}.{safeExtension}";
             var relativePath = $"/uploads/{storedFileName}";
 
-            // Ensure upload directory exists
-            if (!Directory.Exists(_uploadPath))
-            {
-                Directory.CreateDirectory(_uploadPath);
-            }
-
-            var fullPath = Path.Combine(_uploadPath, storedFileName);
-
-            // Save file to disk
             try
             {
-                using var stream = new FileStream(fullPath, FileMode.Create);
-                await file.CopyToAsync(stream);
+                await using var stream = file.OpenReadStream();
+                await _photoStorage.UploadAsync(storedFileName, stream, imageFormat.DefaultMimeType);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error saving file {FileName} to {FullPath}", file.FileName, fullPath);
+                _logger.LogError(ex, "Error saving file {FileName}", file.FileName);
                 result.Success = false;
                 result.ErrorMessage = "Error saving file. Please try again.";
                 return result;
@@ -196,14 +188,12 @@ public class PhotoService : IPhotoService
                 // Rollback: Delete file if database save fails
                 try
                 {
-                    if (File.Exists(fullPath))
-                    {
-                        File.Delete(fullPath);
-                    }
+                    await _photoStorage.DeleteAsync(storedFileName);
                 }
                 catch (Exception deleteEx)
                 {
-                    _logger.LogError(deleteEx, "Error deleting file {FullPath} during rollback", fullPath);
+                    _logger.LogError(deleteEx, "Error deleting stored photo {StoredFileName} during rollback",
+                        storedFileName);
                 }
 
                 _logger.LogError(ex, "Error saving photo metadata to database for {FileName}", file.FileName);
@@ -235,18 +225,14 @@ public class PhotoService : IPhotoService
                 return false;
             }
 
-            // Delete file from disk
-            var fullPath = Path.Combine(_uploadPath, photo.StoredFileName);
             try
             {
-                if (File.Exists(fullPath))
-                {
-                    File.Delete(fullPath);
-                }
+                await _photoStorage.DeleteAsync(photo.StoredFileName);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting file {FullPath} for photo ID {PhotoId}", fullPath, id);
+                _logger.LogError(ex, "Error deleting stored photo {StoredFileName} for photo ID {PhotoId}",
+                    photo.StoredFileName, id);
                 // Continue with database deletion even if file deletion fails
             }
 
