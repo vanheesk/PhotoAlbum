@@ -15,6 +15,7 @@ public class PhotoServiceTests : IDisposable
 {
     private readonly PhotoAlbumContext _context;
     private readonly IPhotoService _photoService;
+    private readonly IPhotoStorageService _photoStorage;
     private readonly string _tempUploadPath;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PhotoService> _logger;
@@ -48,8 +49,8 @@ public class PhotoServiceTests : IDisposable
         // Setup logger
         _logger = new LoggerFactory().CreateLogger<PhotoService>();
 
-        // Create PhotoService instance
-        _photoService = new PhotoService(_context, _configuration, _logger);
+        _photoStorage = new LocalPhotoStorageService(_tempUploadPath);
+        _photoService = new PhotoService(_context, _configuration, _logger, _photoStorage);
     }
 
     [Fact]
@@ -122,6 +123,19 @@ public class PhotoServiceTests : IDisposable
         Assert.NotNull(photo);
         var fullPath = Path.Combine(_tempUploadPath, photo.StoredFileName);
         Assert.True(File.Exists(fullPath));
+    }
+
+    [Fact]
+    public async Task PhotoStorageService_DownloadsUploadedFileAndReturnsNullWhenMissing()
+    {
+        var file = CreateImageFormFile("test.jpg", "image/jpeg");
+        var result = await _photoService.UploadPhotoAsync(file);
+        var photo = await _context.Photos.FindAsync(result.PhotoId);
+
+        Assert.True(result.Success);
+        Assert.NotNull(photo);
+        Assert.NotNull(await _photoStorage.DownloadAsync(photo.StoredFileName));
+        Assert.Null(await _photoStorage.DownloadAsync("missing.jpg"));
     }
 
     [Fact]

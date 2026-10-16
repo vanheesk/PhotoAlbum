@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 using PhotoAlbum.Data;
 using PhotoAlbum.Services;
 
@@ -25,6 +27,21 @@ builder.Services.AddDbContext<PhotoAlbumContext>(options =>
 // Register PhotoService
 builder.Services.AddScoped<IPhotoService, PhotoService>();
 
+var blobEndpoint = builder.Configuration["AzureStorageBlob:Endpoint"];
+if (!string.IsNullOrWhiteSpace(blobEndpoint))
+{
+    var containerName = builder.Configuration["AzureStorageBlob:ContainerName"] ?? "photos";
+    var blobServiceClient = new BlobServiceClient(new Uri(blobEndpoint), new DefaultAzureCredential());
+    builder.Services.AddSingleton(blobServiceClient.GetBlobContainerClient(containerName));
+    builder.Services.AddSingleton<IPhotoStorageService, AzureBlobPhotoStorageService>();
+}
+else
+{
+    var uploadPath = builder.Configuration["FileUpload:UploadPath"] ?? "wwwroot/uploads";
+    builder.Services.AddSingleton<IPhotoStorageService>(
+        new LocalPhotoStorageService(Path.Combine(builder.Environment.ContentRootPath, uploadPath)));
+}
+
 // Configure form options for file uploads
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
@@ -34,13 +51,6 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(optio
 });
 
 var app = builder.Build();
-
-// Ensure uploads directory exists
-var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads");
-if (!Directory.Exists(uploadsPath))
-{
-    Directory.CreateDirectory(uploadsPath);
-}
 
 // Run database migrations on startup in all environments (skip only when flagged as test)
 var isTestEnvironment = app.Configuration.GetValue<bool>("IsTestEnvironment");

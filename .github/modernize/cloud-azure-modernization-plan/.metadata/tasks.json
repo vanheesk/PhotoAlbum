@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Tasks for the PhotoAlbum cloud and Azure modernization plan.",
+  "tasks": [
+    {
+      "type": "setupBaseline",
+      "id": "001-setupBaseline",
+      "description": "Capture the current application behavior and integration-test baseline before modernization.",
+      "requirements": "Set snapshotFolder to PhotoAlbum/ and establish the frozen test specification and external-dependency strategy for post-migration verification using that source snapshot.",
+      "successCriteria": {
+        "passBuild": "true",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "infrastructure",
+      "id": "002-infrastructure",
+      "description": "Provision the Azure infrastructure required to host PhotoAlbum and its persistent data.",
+      "reason": "The application needs cloud infrastructure for the requested Azure deployment.",
+      "requirements": "Use and complete the repository's existing Bicep infrastructure as needed to provision Azure Container Apps, Azure SQL Database, Azure Blob Storage, and supporting resources. Configure managed identity access for the application. Provision the resources after generating or updating the infrastructure definition.",
+      "dependencies": [],
+      "iacType": "bicep",
+      "provision": true,
+      "skills": [
+        {
+          "name": "infrastructure-bicep-generation",
+          "location": "builtin"
+        }
+      ]
+    },
+    {
+      "type": "transform",
+      "id": "003-transform-migrate-database-to-azure-sql",
+      "description": "Make PhotoAlbum's metadata persistence ready for Azure SQL Database.",
+      "reason": "The application currently relies on SQL Server LocalDB, which is not an appropriate production database for the Azure-hosted application.",
+      "requirements": "Configure the existing Entity Framework Core SQL Server persistence to use the provisioned Azure SQL Database and authenticate with managed identity. Preserve photo metadata behavior and existing migrations. Oracle Database is not present, so no PostgreSQL migration is in scope.",
+      "dependencies": [],
+      "successCriteria": {
+        "passBuild": "true",
+        "passUnitTests": "true"
+      },
+      "skills": [
+        {
+          "name": "migration-azure-sql-database",
+          "location": "builtin"
+        },
+        {
+          "name": "migration-managed-identity",
+          "location": "builtin"
+        }
+      ]
+    },
+    {
+      "type": "transform",
+      "id": "004-transform-migrate-photo-storage-to-azure-blob",
+      "description": "Move uploaded photo storage from local disk to Azure Blob Storage.",
+      "reason": "Files written to an individual application instance's local filesystem are not durable or shared across cloud instances.",
+      "requirements": "Replace local-disk photo storage and retrieval with the provisioned Azure Blob Storage container, using managed identity. Preserve upload validation, photo metadata, retrieval, and deletion behavior.",
+      "dependencies": [
+        "003-transform-migrate-database-to-azure-sql"
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "passUnitTests": "true"
+      },
+      "skills": [
+        {
+          "name": "migration-azure-storage-blob",
+          "location": "builtin"
+        }
+      ]
+    },
+    {
+      "type": "integrationTest",
+      "id": "005-integrationTest",
+      "description": "Build integration tests for migrated Azure services and run post-migration verification",
+      "reason": "Verify the application against the real Azure services provisioned for this modernization.",
+      "requirements": "Use the frozen baseline strategy and provisioned Azure resources to verify photo upload, retrieval, deletion, metadata persistence, and managed-identity access.",
+      "dependencies": [
+        "001-setupBaseline",
+        "002-infrastructure",
+        "003-transform-migrate-database-to-azure-sql",
+        "004-transform-migrate-photo-storage-to-azure-blob"
+      ]
+    },
+    {
+      "type": "security",
+      "id": "006-security",
+      "description": "Scan dependencies for known vulnerabilities and remediate identified CVEs before deployment.",
+      "reason": "Validate the security of project dependencies after the application modernization.",
+      "requirements": "Scan all project dependencies for known CVEs and remediate vulnerable dependencies to minimum patched versions. Document any required major-version changes and compatibility risks. Verify the project builds and tests pass after remediation.",
+      "dependencies": [
+        "003-transform-migrate-database-to-azure-sql",
+        "004-transform-migrate-photo-storage-to-azure-blob"
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "deployment",
+      "id": "007-deployment",
+      "description": "Deploy PhotoAlbum to Azure Container Apps using the provisioned Azure services.",
+      "reason": "The requested outcome includes making the cloud-ready application available on Azure.",
+      "requirements": "Build and deploy PhotoAlbum to Azure Container Apps using the repository's existing deployment configuration. Use the provisioned Azure SQL Database and Blob Storage with managed identity. The Azure subscription and deployment region will be supplied at execution time.",
+      "dependencies": [
+        "002-infrastructure",
+        "003-transform-migrate-database-to-azure-sql",
+        "004-transform-migrate-photo-storage-to-azure-blob",
+        "005-integrationTest",
+        "006-security"
+      ],
+      "targetAzureService": "azurecontainerapp",
+      "resourceStatus": "Provision new resources using the existing Bicep infrastructure.",
+      "deploymentTool": "bicep",
+      "skills": [
+        {
+          "name": "azcli-containerapp-deploy",
+          "location": "builtin"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "planName": "cloud-azure-modernization-plan",
+    "projectName": "PhotoAlbum",
+    "language": "dotnet",
+    "createdAt": "2026-10-13T12:35:40Z",
+    "version": "1.0"
+  }
+}

@@ -10,9 +10,8 @@ namespace PhotoAlbum.Pages;
 public class PhotoFileModel : PageModel
 {
     private readonly IPhotoService _photoService;
+    private readonly IPhotoStorageService _photoStorage;
     private readonly ILogger<PhotoFileModel> _logger;
-    private readonly IConfiguration _configuration;
-    private readonly string _uploadPath;
 
     /// <summary>
     /// Initializes a new instance of the PhotoFileModel class
@@ -20,13 +19,14 @@ public class PhotoFileModel : PageModel
     /// <param name="photoService">Service for photo operations</param>
     /// <param name="configuration">Configuration instance</param>
     /// <param name="logger">Logger instance</param>
-    public PhotoFileModel(IPhotoService photoService, IConfiguration configuration, ILogger<PhotoFileModel> logger)
+    public PhotoFileModel(
+        IPhotoService photoService,
+        IPhotoStorageService photoStorage,
+        ILogger<PhotoFileModel> logger)
     {
         _photoService = photoService;
-        _configuration = configuration;
+        _photoStorage = photoStorage;
         _logger = logger;
-
-        _uploadPath = _configuration["FileUpload:UploadPath"] ?? "wwwroot/uploads";
     }
 
     /// <summary>
@@ -52,19 +52,12 @@ public class PhotoFileModel : PageModel
                 return NotFound();
             }
 
-            // Construct the physical file path
-            // photo.FilePath is stored as "/uploads/filename.jpg"
-            // We need to read from "wwwroot/uploads/filename.jpg"
-            var fileName = Path.GetFileName(photo.FilePath);
-            var filePath = Path.Combine(Directory.GetCurrentDirectory(), _uploadPath, fileName);
-
-            if (!System.IO.File.Exists(filePath))
+            var fileBytes = await _photoStorage.DownloadAsync(photo.StoredFileName);
+            if (fileBytes == null)
             {
-                _logger.LogError("Physical file not found for photo ID {PhotoId} at path {FilePath}", id, filePath);
+                _logger.LogError("Stored photo not found for photo ID {PhotoId}", id);
                 return NotFound();
             }
-
-            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
 
             _logger.LogDebug("Serving photo ID {PhotoId} ({FileName}, {FileSize} bytes)",
                 id, photo.OriginalFileName, fileBytes.Length);
